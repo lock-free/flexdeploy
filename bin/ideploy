@@ -9,7 +9,8 @@ const log = console.log; // eslint-disable-line
 yargs.usage(`Usage: ideploy
   --config        config json file path
   --env           used for config
-
+  --buildOnly     build only
+  --publishOnly   publish only
   --onlineType    online type, production, staging, ...
     `).help('h').alias('h', 'help');
 
@@ -73,51 +74,67 @@ const runPreHooks = (config, configFilePath, cwd) => {
     const onlineType = argv.onlineType;
     const configDir = path.dirname(configFilePath);
     await runPreHooks(config, configFilePath, path.dirname(configFilePath));
+
     // build code
     const sourceProjectDir = path.resolve(configDir, config.srcDir);
     const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
     const deployStageName = 'stage';
     const deployDir = path.resolve(configDir, config.depDir || '.');
 
-    await buildCode({
-      project: config.project,
-      onlineType,
-      sourceProjectDir,
-      sourceStageDir,
-      deployStageName,
-      deployDir
-    });
-
-    var instList = config.instances[argv.onlineType];
-
-    if(argv.host || process.env['HOST']) {
-      instList = instList.filter(({host}) => host === (argv.host || process.env['HOST']));
-    }
-
-    const deployInst = (inst) => {
-      const instObj = Object.assign(resolveConfigDef(config.def, {
-        env: inst.env || onlineType,
-        project: config.project
-      }), inst);
-      info('inst obj', `${JSON.stringify(instObj, null, 4)}`);
-
-      const obj = {
+    const prepareCode = async () => {
+      // build code
+      return await buildCode({
+        project: config.project,
+        onlineType,
+        sourceProjectDir,
+        sourceStageDir,
         deployStageName,
-        deployDir,
-        host: instObj.host,
-        remoteDir: instObj.remoteDir,
-        dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml)
-      };
-
-      info('options', `${JSON.stringify(obj, null, 4)}`);
-      return deployToServer(obj);
+        deployDir
+      });
     };
 
-    // concurrent
-    return Promise.all(instList.map(deployInst));
-    // sequencial
-    // return instList.reduce((p, inst) => {
-    //   return p.then(() => deployInst(inst));
-    // }, Promise.resolve());
+    const publishInsts = () => {
+      // deploy to servers
+      var instList = config.instances[argv.onlineType];
+
+      if(argv.host || process.env['HOST']) {
+        instList = instList.filter(({host}) => host === (argv.host || process.env['HOST']));
+      }
+
+      const deployInst = (inst) => {
+        const instObj = Object.assign(resolveConfigDef(config.def, {
+          env: inst.env || onlineType,
+          project: config.project
+        }), inst);
+        info('inst obj', `${JSON.stringify(instObj, null, 4)}`);
+
+        const obj = {
+          deployStageName,
+          deployDir,
+          host: instObj.host,
+          remoteDir: instObj.remoteDir,
+          dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml)
+        };
+
+        info('options', `${JSON.stringify(obj, null, 4)}`);
+        return deployToServer(obj);
+      };
+
+      // concurrent
+      return Promise.all(instList.map(deployInst));
+      // sequencial
+      // return instList.reduce((p, inst) => {
+      //   return p.then(() => deployInst(inst));
+      // }, Promise.resolve());
+    };
+
+    if(argv.buildOnly) {
+      await prepareCode();
+    } else if(argv.publishOnly) {
+      await publishInsts();
+    } else {
+      await prepareCode();
+      await publishInsts();
+    }
   }
 })();
