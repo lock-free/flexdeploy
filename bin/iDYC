@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+
+const {generateDCY} = require('..');
+const yargs = require('yargs');
+const path = require('path');
+const log = console.log; // eslint-disable-line
+
+yargs.usage(`Usage: iDYC
+  --tplPath       tpl file path
+  --config        config file path 
+    `).help('h').alias('h', 'help');
+
+const {
+  argv
+} = yargs;
+
+generateDCY({
+  tplPath: path.resolve(process.cwd(), argv.tplPath || 'dcy.tpl'),
+  config: path.resolve(process.cwd(), argv.config || 'dcy-cnf.json')
+});

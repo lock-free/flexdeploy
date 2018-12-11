@@ -1,0 +1,123 @@
+#!/usr/bin/env node
+
+const {deployToServer, buildCode} = require('..');
+const {readJson, info, existsFile, exec, parseTpl} = require('../src/util');
+const yargs = require('yargs');
+const path = require('path');
+const log = console.log; // eslint-disable-line
+
+yargs.usage(`Usage: ideploy
+  --config        config json file path
+  --env           used for config
+
+  --onlineType    online type, production, staging, ...
+    `).help('h').alias('h', 'help');
+
+const {
+  argv
+} = yargs;
+
+const resolveConfigDef = (def, obj) => {
+  const ret = {};
+
+  if(def.remoteDir) {
+    ret.remoteDir = parseTpl(def.remoteDir, obj);
+  }
+
+  if(def.dockerComposeYml) {
+    ret.dockerComposeYml = parseTpl(def.dockerComposeYml, obj);
+  }
+
+  if(def.healthJob) {
+    ret.healthJob = (def.healthJob || []).map((item) => parseTpl(item, obj));
+  }
+
+  return ret;
+};
+
+const runPreHooks = (config, configFilePath, cwd) => {
+  if(config.hooks && config.hooks.pre) {
+    config.hooks.pre.reduce((prev, line) => {
+      return prev.then(() => {
+        return exec(line, {
+          cwd
+        });
+      });
+    }, Promise.resolve());
+  }
+
+  return Promise.resolve();
+};
+
+(async () => {
+  let configFilePath, config = null;
+
+  if(argv.config) {
+    configFilePath = path.resolve(process.cwd(), argv.config);
+  } else if(await existsFile(path.resolve(process.cwd(), 'deploy-cnf.json'))) {
+    configFilePath = path.resolve(process.cwd(), 'deploy-cnf.json');
+  }
+
+  if(configFilePath) {
+    config = await readJson(configFilePath);
+  }
+
+  /**
+   * instances = {
+   *   [onlineType]: [argv]
+   * }
+   *
+   * default env = onlineType
+   */
+  if(config) {
+    const onlineType = argv.onlineType;
+    const configDir = path.dirname(configFilePath);
+    await runPreHooks(config, configFilePath, path.dirname(configFilePath));
+    // build code
+    const sourceProjectDir = path.resolve(configDir, config.srcDir);
+    const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
+    const deployStageName = 'stage';
+    const deployDir = path.resolve(configDir, config.depDir || '.');
+
+    await buildCode({
+      project: config.project,
+      onlineType,
+      sourceProjectDir,
+      sourceStageDir,
+      deployStageName,
+      deployDir
+    });
+
+    var instList = config.instances[argv.onlineType];
+
+    if(argv.host || process.env['HOST']) {
+      instList = instList.filter(({host}) => host === (argv.host || process.env['HOST']));
+    }
+
+    const deployInst = (inst) => {
+      const instObj = Object.assign(resolveConfigDef(config.def, {
+        env: inst.env || onlineType,
+        project: config.project
+      }), inst);
+      info('inst obj', `${JSON.stringify(instObj, null, 4)}`);
+
+      const obj = {
+        deployStageName,
+        deployDir,
+        host: instObj.host,
+        remoteDir: instObj.remoteDir,
+        dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml)
+      };
+
+      info('options', `${JSON.stringify(obj, null, 4)}`);
+      return deployToServer(obj);
+    };
+
+    // concurrent
+    return Promise.all(instList.map(deployInst));
+    // sequencial
+    // return instList.reduce((p, inst) => {
+    //   return p.then(() => deployInst(inst));
+    // }, Promise.resolve());
+  }
+})();
