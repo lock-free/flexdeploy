@@ -102,6 +102,18 @@ const retry = (fn, max = 0) => {
   return (...args) => help(args, max);
 };
 
+const delay = (t) => {
+  return new Promise((resolve, reject) => {
+    try {
+      setTimeout(() => {
+        resolve();
+      }, t);
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
 module.exports = {
   spawnp,
   exec,
@@ -114,5 +126,6 @@ module.exports = {
   parseTpl,
   errorLogWrapper,
   saveJsonObj,
-  retry
+  retry,
+  delay
 };
