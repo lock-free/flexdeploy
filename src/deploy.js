@@ -44,9 +44,13 @@ const deployToServer = async ({
   // source some startup files first to set up environment
   await exec(`ssh ${host} "source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose up -d --build"`);
 
-  await delay(10 * 1000);
-  // 100 logs
-  info('100 logs', await exec(`ssh ${host} "cd ${remoteDir} && docker-compose logs --tail 100"`));
+  // logs
+  delay(10 * 1000).then(() => {
+    return exec(`ssh ${host} "cd ${remoteDir} && docker-compose logs --tail 100"`);
+  }).then((text) => {
+    // 100 logs
+    info('100 logs', text);
+  });
 };
 
 const copyFiles = async ({
