@@ -107,13 +107,18 @@ const runPreHooks = (config, configFilePath, cwd) => {
           project: config.project
         }), inst);
         info('inst obj', `${JSON.stringify(instObj, null, 4)}`);
+        // check inst options
+        if(!config.sshConfigs || !config.sshConfigs[instObj.host]) {
+          throw new Error(`missing sshConfigs for host ${instObj.host}.`);
+        }
 
         const obj = {
           deployStageName,
           deployDir,
           host: instObj.host,
           remoteDir: instObj.remoteDir,
-          dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml)
+          dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml),
+          sshConfig: config.sshConfigs[instObj.host] // TODO read local ssh config file
         };
 
         info('options', `${JSON.stringify(obj, null, 4)}`);
