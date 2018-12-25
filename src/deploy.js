@@ -67,7 +67,7 @@ const deployToServerHelp = async({
   // start server
   // source some startup files first to set up environment
   const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose up -d --build`;
-  info('ssh-command', startServiceCommand);
+  info('ssh-command', `${host}:${startServiceCommand}`);
   await sshClient.exec(startServiceCommand);
 
   // logs
@@ -130,7 +130,7 @@ const copyFiles = async({
     info('missing-remote-digest-json', `can not find remote digest json. ${host}:${remoteDigestFilePath}`);
     if (await sftpClient.existsDir(remoteStageDir)) {
       const clearRemoteStageCommand = `rm -r ${remoteStageDir}`;
-      info('ssh-command', clearRemoteStageCommand);
+      info('ssh-command', `${host}:${clearRemoteStageCommand}`);
       // copy binaries
       await sshClient.exec(clearRemoteStageCommand);
     }
