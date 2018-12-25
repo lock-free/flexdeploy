@@ -7,6 +7,9 @@ const sshClient = require('ssh2').Client;
 const log = console.log.bind(console); // eslint-disable-line
 
 const promisify = (fn) => {
+  if (typeof fn !== 'function') {
+    throw new Error(`Expect function to promisify, but got ${fn}`);
+  }
   return async(...args) => {
     return new Promise((resolve, reject) => {
       try {
@@ -293,8 +296,8 @@ const wrapFunForSSH2Conn = (conn) => {
       existsDir: sftp_existsDir,
       existsFile: sftp_existsFile,
       readFile: sftp_readFile,
-      unlink: promisify(sftp.unlink),
-      rmdir: promisify(sftp.rmdir)
+      unlink: promisify(sftp.unlink.bind(sftp)),
+      rmdir: promisify(sftp.rmdir.bind(sftp))
     };
   };
 

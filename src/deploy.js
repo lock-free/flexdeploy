@@ -121,7 +121,7 @@ const copyFiles = async({
     info('copy list', JSON.stringify(copyList, null, 4));
 
     if (delList.length) {
-      await deleteRemoteFiles(host, delList, sshClient);
+      await deleteRemoteFiles(host, delList, sftpClient);
     }
     if (copyList.length) {
       await copyFilesToRemote(host, copyList, sftpClient);
@@ -154,16 +154,17 @@ const copyFilesToRemote = async(host, list, sftpClient) => {
   }));
 };
 
-// TODO
-const deleteRemoteFiles = async(host, files, sshClient) => {
-  const removeRemoteDirCommand = `rm -r ${files.join(' ')}" || echo "some deletion may fail.`;
-  info('ssh-command', removeRemoteDirCommand);
-  await sshClient.exec(removeRemoteDirCommand);
+const deleteRemoteFiles = async(host, files, sftpClient) => {
+  return Promise.all(files.map(async(file) => {
+    if (await sftpClient.existsFile(file)) {
+      info('sftp-unlink', `${host}:${file}`);
+      await sftpClient.unlink(file);
+    }
+  }));
 };
 
-// TODO
 const readRemoteJson = async(host, jsonFilePath, sftpClient) => {
-  info('sftp-readFile', `${jsonFilePath}`);
+  info('sftp-readFile', `${host}:${jsonFilePath}`);
   const ret = await sftpClient.readFile(jsonFilePath);
   return JSON.parse(ret.toString());
 };
