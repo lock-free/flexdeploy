@@ -12,20 +12,37 @@ const {
 /**
  * deploy code to server and using docker-compose way to start service
  */
-const deployToServer = async({
+const deployToServer = async(options) => {
+  const sshClient = await getSSHClient(options.sshConfig);
+  info('ssh-connection', `connected: ${options.host}`);
+  const sftpClient = await sshClient.getSftp();
+  info('sftp-connection', `connected: ${options.host}`);
+
+  try {
+    await deployToServerHelp(Object.assign({
+      sshClient,
+      sftpClient
+    }, options));
+  } catch (err) {
+    throw err;
+  } finally {
+    sshClient.conn.end();
+    if (sshClient.parentConn) {
+      sshClient.parentConn.end();
+    }
+  }
+};
+
+const deployToServerHelp = async({
+  sshClient,
+  sftpClient,
   host,
   deployDir,
   remoteDir,
   dockerComposeYml,
   deployStageName,
-  digestMapFileName = 'dirDigestMap.json',
-  sshConfig // ssh2 protocol connection configuration
+  digestMapFileName = 'dirDigestMap.json'
 }) => {
-  const sshClient = await getSSHClient(sshConfig);
-  info('ssh-connection', `connected: ${host}`);
-  const sftpClient = await sshClient.getSftp();
-  info('sftp-connection', `connected: ${host}`);
-
   // create remote dir if not exists
   if (!await sftpClient.existsDir(remoteDir)) {
     await sftpClient.mkdir(remoteDir);
@@ -54,13 +71,9 @@ const deployToServer = async({
   await sshClient.exec(startServiceCommand);
 
   // logs
-  delay(10 * 1000).then(() => {
-    const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
-    return sshClient.exec(checkRemoteLogCommand);
-  }).then((text) => {
-    // 100 logs
-    info('100 logs', text);
-  });
+  await delay(5 * 1000);
+  const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
+  await sshClient.exec(checkRemoteLogCommand);
 };
 
 const copyFiles = async({
@@ -78,7 +91,7 @@ const copyFiles = async({
   const remoteDigestFilePath = path.join(remoteDir, digestMapFileName);
 
   if (await sftpClient.existsFile(remoteDigestFilePath)) {
-    const remoteDigest = await readRemoteJson(host, remoteDigestFilePath, sshClient);
+    const remoteDigest = await readRemoteJson(host, remoteDigestFilePath, sftpClient);
     const localDigest = await readJson(stageDigestFilePath);
     const diffList = diffListByLayer(localDigest, remoteDigest);
 
@@ -115,10 +128,13 @@ const copyFiles = async({
     }
   } else {
     info('missing-remote-digest-json', `can not find remote digest json. ${host}:${remoteDigestFilePath}`);
-    const clearRemoteStageCommand = `[ -d ${remoteStageDir} ] && rm -r ${remoteStageDir} || echo \\"no stage dir\\"`;
-    info('ssh-command', clearRemoteStageCommand);
-    // copy binaries
-    await sshClient.exec(clearRemoteStageCommand);
+    if (await sftpClient.existsDir(remoteStageDir)) {
+      const clearRemoteStageCommand = `rm -r ${remoteStageDir}`;
+      info('ssh-command', clearRemoteStageCommand);
+      // copy binaries
+      await sshClient.exec(clearRemoteStageCommand);
+    }
+
     info('sftp-upload', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
     await sftpClient.upload(stageCacheDir, remoteStageDir);
   }
@@ -146,10 +162,9 @@ const deleteRemoteFiles = async(host, files, sshClient) => {
 };
 
 // TODO
-const readRemoteJson = async(host, jsonFilePath, sshClient) => {
-  const readRemoteFileCommand = `cat ${jsonFilePath}`;
-  info('ssh-command', readRemoteFileCommand);
-  const ret = await sshClient.exec(readRemoteFileCommand);
+const readRemoteJson = async(host, jsonFilePath, sftpClient) => {
+  info('sftp-readFile', `${jsonFilePath}`);
+  const ret = await sftpClient.readFile(jsonFilePath);
   return JSON.parse(ret.toString());
 };
 

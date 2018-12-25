@@ -2,18 +2,34 @@ const chalk = require('chalk');
 const _ = require('lodash');
 const path = require('path');
 const _spawnp = require('spawnp');
-const {
-  promisify
-} = require('es6-promisify');
+const fs = require('fs');
+const sshClient = require('ssh2').Client;
+const log = console.log.bind(console); // eslint-disable-line
+
+const promisify = (fn) => {
+  return async(...args) => {
+    return new Promise((resolve, reject) => {
+      try {
+        fn(...args, (err, data) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(data);
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+};
+
 const stat = promisify(require('fs').stat);
 const mkdirp = promisify(require('mkdirp'));
-const fs = require('fs');
 const readFile = promisify(fs.readFile);
 const readdir = promisify(fs.readdir);
 const writeFile = promisify(fs.writeFile);
 const _exec = promisify(require('child_process').exec);
-const sshClient = require('ssh2').Client;
-const log = console.log.bind(console); // eslint-disable-line
 
 const info = (title, txt) => {
   log(chalk.blue(`[${title}] ${txt}`));
@@ -141,18 +157,21 @@ const wrapFunForSSH2Conn = (conn) => {
     return new Promise((resolve, reject) => {
       try {
         conn.exec(cmd, (err, stream) => {
-          if (err) throw err;
-          stream.on('close', function(code, signal) {
-            if (code !== 0) {
-              reject(new Error(`command exit with code ${code}, signal ${signal}`));
-            } else {
-              resolve();
-            }
-          }).on('data', function(data) {
-            process.stdout.write(data);
-          }).stderr.on('data', function(data) {
-            process.stderr.write(data);
-          });
+          if (err) {
+            reject(err);
+          } else {
+            stream.on('close', function(code, signal) {
+              if (code !== 0) {
+                reject(new Error(`command exit with code ${code}, signal ${signal}. Cmd is ${cmd}`));
+              } else {
+                resolve();
+              }
+            }).on('data', function(data) {
+              process.stdout.write(data);
+            }).stderr.on('data', function(data) {
+              process.stderr.write(data);
+            });
+          }
         });
       } catch (err) {
         reject(err);
@@ -164,8 +183,11 @@ const wrapFunForSSH2Conn = (conn) => {
     return new Promise((resolve, reject) => {
       try {
         conn.exec(cmd, (err, stream) => {
-          if (err) throw err;
-          resolve(stream);
+          if (err) {
+            reject(err);
+          } else {
+            resolve(stream);
+          }
         });
       } catch (err) {
         reject(err);
@@ -188,52 +210,15 @@ const wrapFunForSSH2Conn = (conn) => {
       }
     });
   };
+
   const getSftp = async() => {
     const sftp = await buildSftp();
 
-    const download = (remote, local) => {
-      return new Promise((resolve, reject) => {
-        sftp.fastGet(remote, local, {}, (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    };
-
-    const sftp_mkdir = async(filePath) => {
-      return new Promise((resolve, reject) => {
-        try {
-          sftp.mkdir(filePath, (err, data) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(data);
-            }
-          });
-        } catch (err) {
-          reject(err);
-        }
-      });
-    };
-
-    const sftp_stat = async(filePath) => {
-      return new Promise((resolve, reject) => {
-        try {
-          sftp.stat(filePath, (err, statObj) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(statObj);
-            }
-          });
-        } catch (err) {
-          reject(err);
-        }
-      });
-    };
+    const download = promisify(sftp.fastGet.bind(sftp));
+    const sftp_mkdir = promisify(sftp.mkdir.bind(sftp));
+    const sftp_stat = promisify(sftp.stat.bind(sftp));
+    const sftp_chmod = promisify(sftp.chmod.bind(sftp));
+    const sftp_readFile = promisify(sftp.readFile.bind(sftp));
 
     const sftp_existsDir = async(remoteDir) => {
       try {
@@ -246,8 +231,8 @@ const wrapFunForSSH2Conn = (conn) => {
 
     const sftp_existsFile = async(remoteDir) => {
       try {
-        const stat = sftp_stat(remoteDir);
-        return stat.isDirectory();
+        const statObj = await sftp_stat(remoteDir);
+        return statObj.isFile();
       } catch (err) {
         return false;
       }
@@ -262,33 +247,43 @@ const wrapFunForSSH2Conn = (conn) => {
       }
     };
 
-    const uploadFile = (local, remote) => {
+    const keepFileMod = async(local, remote) => {
+      const statObj = await stat(local);
+      await sftp_chmod(remote, statObj.mode);
+    };
+
+    const uploadFile = async(local, remote) => {
       const readStream = fs.createReadStream(local);
       const writeStream = sftp.createWriteStream(remote);
-      return new Promise((resolve, reject) => {
+      await new Promise((resolve, reject) => {
         readStream.on('error', reject);
         writeStream.on('error', reject);
         readStream.pipe(writeStream).on('finish', resolve);
       });
+
+      await keepFileMod(local, remote);
     };
 
     const uploadDir = async(localDir, remoteDir) => {
       // create remote dir if not exists
       if (!await sftp_existsDir(remoteDir)) {
         await sftp_mkdir(remoteDir);
+        await keepFileMod(localDir, remoteDir);
       }
       const files = await readdir(localDir);
-      files.map(async(file) => {
-        const filePath = path.resolve(localDir, file);
-        const fileStat = await stat(filePath);
+      return Promise.all(
+        files.map(async(file) => {
+          const filePath = path.resolve(localDir, file);
+          const fileStat = await stat(filePath);
 
-        const remoteFilePath = path.resolve(remoteDir, file);
-        if (fileStat.isDirectory()) {
-          return uploadDir(filePath, remoteFilePath);
-        } else {
-          return uploadFile(filePath, remoteFilePath);
-        }
-      });
+          const remoteFilePath = path.resolve(remoteDir, file);
+          if (fileStat.isDirectory()) {
+            return uploadDir(filePath, remoteFilePath);
+          } else {
+            return uploadFile(filePath, remoteFilePath);
+          }
+        })
+      );
     };
 
     return {
@@ -297,6 +292,7 @@ const wrapFunForSSH2Conn = (conn) => {
       mkdir: sftp_mkdir,
       existsDir: sftp_existsDir,
       existsFile: sftp_existsFile,
+      readFile: sftp_readFile,
       unlink: promisify(sftp.unlink),
       rmdir: promisify(sftp.rmdir)
     };

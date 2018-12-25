@@ -3,6 +3,7 @@
 const {deployToServer, buildCode} = require('..');
 const {readJson, info, existsFile, exec, parseTpl} = require('../src/util');
 const yargs = require('yargs');
+const fs = require('fs');
 const path = require('path');
 const log = console.log; // eslint-disable-line
 
@@ -34,6 +35,41 @@ const resolveConfigDef = (def, obj) => {
   }
 
   return ret;
+};
+
+function getUserHome() {
+  return process.env[(process.platform === 'win32') ? 'USERPROFILE' : 'HOME'];
+}
+
+const resolveSSHConfig = (sshConfigs, configDir) => {
+  if(!sshConfigs) {
+    throw new Error('missing configuration of sshConfigs');
+  }
+
+  const defaultPrivateKeyFile = path.resolve(getUserHome(), '.ssh/id_rsa');
+
+  for(let name in sshConfigs) {
+    const obj = sshConfigs[name];
+    const options = obj.options;
+    const proxyOptions = obj.proxyOptions;
+    if(!options.privateKey) {
+      options.privateKeyFile = options.privateKeyFile || defaultPrivateKeyFile;
+      options.privateKey = fs.readFileSync(path.resolve(configDir, options.privateKeyFile), 'utf-8');
+      delete options.privateKeyFile;
+    }
+    obj.options = options;
+
+    if(proxyOptions) {
+      if(!proxyOptions.privateKey) {
+        proxyOptions.privateKeyFile = proxyOptions.privateKeyFile || defaultPrivateKeyFile;
+        proxyOptions.privateKey = fs.readFileSync(path.resolve(configDir, proxyOptions.privateKeyFile), 'utf-8');
+        delete proxyOptions.privateKeyFile;
+      }
+      obj.proxyOptions = proxyOptions;
+    }
+  }
+
+  return sshConfigs;
 };
 
 const runPreHooks = (config, configFilePath, cwd) => {
@@ -80,6 +116,9 @@ const runPreHooks = (config, configFilePath, cwd) => {
     const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
     const deployStageName = 'stage';
     const deployDir = path.resolve(configDir, config.depDir || '.');
+
+    // modify config
+    config.sshConfigs = resolveSSHConfig(config.sshConfigs, configDir);
 
     const prepareCode = async () => {
       // build code
