@@ -66,7 +66,7 @@ const deployToServerHelp = async({
 
   // start server
   // source some startup files first to set up environment
-  const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose up -d --build`;
+  const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
   info('ssh-command', `${host}:${startServiceCommand}`);
   await sshClient.exec(startServiceCommand);
 
