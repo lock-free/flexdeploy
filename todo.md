@@ -1,0 +1,3 @@
+- revert
+
+- support full deployment
