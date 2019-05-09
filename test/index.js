@@ -1,7 +1,7 @@
 const {
   getDirMd5FileMapping,
   diffListByLayer
-} = require('../src/syncRemoteDir');
+} = require('../src/util');
 const path = require('path');
 const assert = require('assert');
 const log = console.log; // eslint-disable-line

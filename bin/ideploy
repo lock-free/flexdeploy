@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+const _ = require('lodash');
 const {deployToServer, buildCode} = require('..');
-const {readJson, info, existsFile, exec, parseTpl} = require('../src/util');
+const {getUserHome, readJson, existsFile, exec, parseTpl} = require('../src/util');
 const yargs = require('yargs');
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +20,9 @@ const {
   argv
 } = yargs;
 
+/**
+ * obj = {env, project}
+ */
 const resolveConfigDef = (def, obj) => {
   const ret = {};
 
@@ -37,10 +41,6 @@ const resolveConfigDef = (def, obj) => {
   return ret;
 };
 
-function getUserHome() {
-  return process.env[(process.platform === 'win32') ? 'USERPROFILE' : 'HOME'];
-}
-
 const resolveSSHConfig = (sshConfigs, configDir) => {
   if(!sshConfigs) {
     throw new Error('missing configuration of sshConfigs');
@@ -51,7 +51,7 @@ const resolveSSHConfig = (sshConfigs, configDir) => {
   for(let name in sshConfigs) {
     const obj = sshConfigs[name];
     const options = obj.options;
-    const proxyOptions = obj.proxyOptions;
+    // resolve private key
     if(!options.privateKey) {
       options.privateKeyFile = options.privateKeyFile || defaultPrivateKeyFile;
       options.privateKey = fs.readFileSync(path.resolve(configDir, options.privateKeyFile), 'utf-8');
@@ -59,6 +59,8 @@ const resolveSSHConfig = (sshConfigs, configDir) => {
     }
     obj.options = options;
 
+    // resolve proxy private key
+    const proxyOptions = obj.proxyOptions;
     if(proxyOptions) {
       if(!proxyOptions.privateKey) {
         proxyOptions.privateKeyFile = proxyOptions.privateKeyFile || defaultPrivateKeyFile;
@@ -86,7 +88,8 @@ const runPreHooks = (config, configFilePath, cwd) => {
   return Promise.resolve();
 };
 
-(async () => {
+// read config from file
+const readOptions = async () => {
   let configFilePath, config = null;
 
   if(argv.config) {
@@ -99,86 +102,82 @@ const runPreHooks = (config, configFilePath, cwd) => {
     config = await readJson(configFilePath);
   }
 
-  /**
-   * instances = {
-   *   [onlineType]: [argv]
-   * }
-   *
-   * default env = onlineType
-   */
-  if(config) {
-    const onlineType = argv.onlineType;
-    const configDir = path.dirname(configFilePath);
-    await runPreHooks(config, configFilePath, path.dirname(configFilePath));
+  if(!config) {
+    throw new Error('missing config, use "ideploy --help" to see how to pass config.');
+  }
 
+  const onlineType = argv.onlineType;
+  const configDir = path.dirname(configFilePath);
+  await runPreHooks(config, configFilePath, path.dirname(configFilePath));
+
+  // build code
+  const sourceProjectDir = path.resolve(configDir, config.srcDir);
+  const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
+  const deployStageName = 'stage';
+  const deployDir = path.resolve(configDir, config.depDir || '.');
+
+  // modify config
+  config.sshConfigs = resolveSSHConfig(config.sshConfigs, configDir);
+  return {
+    config,
+    configDir,
+    project: config.project,
+    onlineType,
+    sourceProjectDir,
+    sourceStageDir,
+    deployStageName,
+    deployDir
+  };
+};
+
+const getDockerComposeYml = (options, instObj) => {
+  return path.resolve(options.configDir, argv.dockerComposeYml || instObj.dockerComposeYml);
+};
+
+const getDeployList = (options) => {
+  // deploy to servers
+  var instList = options.config.instances[options.onlineType];
+
+  // can filter by host variable
+  if(argv.host || process.env['HOST']) {
+    instList = instList.filter(({host}) => host === (argv.host || process.env['HOST']));
+  }
+
+  return instList;
+};
+
+(async () => {
+  const options = await readOptions();
+
+  const prepareCode = async () => {
     // build code
-    const sourceProjectDir = path.resolve(configDir, config.srcDir);
-    const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
-    const deployStageName = 'stage';
-    const deployDir = path.resolve(configDir, config.depDir || '.');
+    return await buildCode(options);
+  };
 
-    // modify config
-    config.sshConfigs = resolveSSHConfig(config.sshConfigs, configDir);
+  const publishInsts = () => {
+    return Promise.all(getDeployList(options).map((inst) => {
+      const instObj = _.assign(inst,
+        resolveConfigDef(options.config.def, {
+          env: options.onlineType,
+          project: options.project
+        }));
 
-    const prepareCode = async () => {
-      // build code
-      return await buildCode({
-        project: config.project,
-        onlineType,
-        sourceProjectDir,
-        sourceStageDir,
-        deployStageName,
-        deployDir
-      });
-    };
+      return deployToServer(_.assign(
+        options,
+        instObj,
+        {
+          sshConfig: options.config.sshConfigs[instObj.host],
+          dockerComposeYml: getDockerComposeYml(options, instObj),
+        }));
+    }));
+  };
 
-    const publishInsts = () => {
-      // deploy to servers
-      var instList = config.instances[argv.onlineType];
-
-      if(argv.host || process.env['HOST']) {
-        instList = instList.filter(({host}) => host === (argv.host || process.env['HOST']));
-      }
-
-      const deployInst = (inst) => {
-        const instObj = Object.assign(resolveConfigDef(config.def, {
-          env: inst.env || onlineType,
-          project: config.project
-        }), inst);
-        info('inst obj', `${JSON.stringify(instObj, null, 4)}`);
-        // check inst options
-        if(!config.sshConfigs || !config.sshConfigs[instObj.host]) {
-          throw new Error(`missing sshConfigs for host ${instObj.host}.`);
-        }
-
-        const obj = {
-          deployStageName,
-          deployDir,
-          host: instObj.host,
-          remoteDir: instObj.remoteDir,
-          dockerComposeYml: path.resolve(configDir, argv.dockerComposeYml || instObj.dockerComposeYml),
-          sshConfig: config.sshConfigs[instObj.host] // TODO read local ssh config file
-        };
-
-        info('options', `${JSON.stringify(obj, null, 4)}`);
-        return deployToServer(obj);
-      };
-
-      // concurrent
-      return Promise.all(instList.map(deployInst));
-      // sequencial
-      // return instList.reduce((p, inst) => {
-      //   return p.then(() => deployInst(inst));
-      // }, Promise.resolve());
-    };
-
-    if(argv.buildOnly) {
-      await prepareCode();
-    } else if(argv.publishOnly) {
-      await publishInsts();
-    } else {
-      await prepareCode();
-      await publishInsts();
-    }
+  if(argv.buildOnly) {
+    await prepareCode();
+  } else if(argv.publishOnly) {
+    await publishInsts();
+  } else {
+    await prepareCode();
+    await publishInsts();
   }
 })();
