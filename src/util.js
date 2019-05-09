@@ -10,7 +10,7 @@ const promisify = (fn) => {
   if (typeof fn !== 'function') {
     throw new Error(`Expect function to promisify, but got ${fn}`);
   }
-  return async(...args) => {
+  return async (...args) => {
     return new Promise((resolve, reject) => {
       try {
         fn(...args, (err, data) => {
@@ -42,7 +42,7 @@ const infoErr = (title, txt) => {
   log(chalk.red(`[${title}] ${txt}`));
 };
 
-const spawnp = async(...args) => {
+const spawnp = async (...args) => {
   try {
     info('start spawn', `${args}`);
     return await _spawnp(...args);
@@ -52,7 +52,7 @@ const spawnp = async(...args) => {
   }
 };
 
-const exec = async(...args) => {
+const exec = async (...args) => {
   try {
     info('start exec', `${args}`);
     return await _exec(...args);
@@ -62,11 +62,11 @@ const exec = async(...args) => {
   }
 };
 
-const readTxt = async(filePath) => {
+const readTxt = async (filePath) => {
   return await readFile(filePath, 'utf-8');
 };
 
-const writeTxt = async(filePath, txt) => {
+const writeTxt = async (filePath, txt) => {
   await mkdirp(path.dirname(filePath));
   return await writeFile(filePath, txt, 'utf-8');
 };
@@ -99,7 +99,7 @@ const parseTpl = (tpl, obj = {}) => {
 };
 
 const errorLogWrapper = (fn) => {
-  return async(...args) => {
+  return async (...args) => {
     try {
       return await fn(...args);
     } catch (e) {
@@ -214,7 +214,7 @@ const wrapFunForSSH2Conn = (conn) => {
     });
   };
 
-  const getSftp = async() => {
+  const getSftp = async () => {
     const sftp = await buildSftp();
 
     const download = promisify(sftp.fastGet.bind(sftp));
@@ -223,7 +223,29 @@ const wrapFunForSSH2Conn = (conn) => {
     const sftp_chmod = promisify(sftp.chmod.bind(sftp));
     const sftp_readFile = promisify(sftp.readFile.bind(sftp));
 
-    const sftp_existsDir = async(remoteDir) => {
+    const sftp_mkdirp = async (dir) => {
+      const levels = path.resolve(dir).split('/');
+
+      let i = levels.length - 1;
+
+      // find first exists dir
+      while (i >= 0) {
+        if (await sftp_existsDir(getPathFromArr(levels.slice(0, i + 1)))) {
+          i++;
+          break;
+        } else {
+          i--;
+        }
+      }
+
+      for (; i < levels.length; i++) {
+        await sftp_mkdir(getPathFromArr(levels.slice(0, i + 1)));
+      }
+    };
+
+    const getPathFromArr = (arr) => '/' + arr.join('/');
+
+    const sftp_existsDir = async (remoteDir) => {
       try {
         const stat = await sftp_stat(remoteDir);
         return stat.isDirectory();
@@ -232,7 +254,7 @@ const wrapFunForSSH2Conn = (conn) => {
       }
     };
 
-    const sftp_existsFile = async(remoteDir) => {
+    const sftp_existsFile = async (remoteDir) => {
       try {
         const statObj = await sftp_stat(remoteDir);
         return statObj.isFile();
@@ -241,7 +263,7 @@ const wrapFunForSSH2Conn = (conn) => {
       }
     };
 
-    const upload = async(local, remote) => {
+    const upload = async (local, remote) => {
       const localStat = await stat(local);
       if (localStat.isDirectory()) {
         return uploadDir(local, remote);
@@ -250,12 +272,12 @@ const wrapFunForSSH2Conn = (conn) => {
       }
     };
 
-    const keepFileMod = async(local, remote) => {
+    const keepFileMod = async (local, remote) => {
       const statObj = await stat(local);
       await sftp_chmod(remote, statObj.mode);
     };
 
-    const uploadFile = async(local, remote) => {
+    const uploadFile = async (local, remote) => {
       const readStream = fs.createReadStream(local);
       const writeStream = sftp.createWriteStream(remote);
       await new Promise((resolve, reject) => {
@@ -267,7 +289,7 @@ const wrapFunForSSH2Conn = (conn) => {
       await keepFileMod(local, remote);
     };
 
-    const uploadDir = async(localDir, remoteDir) => {
+    const uploadDir = async (localDir, remoteDir) => {
       // create remote dir if not exists
       if (!await sftp_existsDir(remoteDir)) {
         await sftp_mkdir(remoteDir);
@@ -275,7 +297,7 @@ const wrapFunForSSH2Conn = (conn) => {
       }
       const files = await readdir(localDir);
       return Promise.all(
-        files.map(async(file) => {
+        files.map(async (file) => {
           const filePath = path.resolve(localDir, file);
           const fileStat = await stat(filePath);
 
@@ -293,6 +315,7 @@ const wrapFunForSSH2Conn = (conn) => {
       download,
       upload,
       mkdir: sftp_mkdir,
+      mkdirp: sftp_mkdirp,
       existsDir: sftp_existsDir,
       existsFile: sftp_existsFile,
       readFile: sftp_readFile,
@@ -308,7 +331,7 @@ const wrapFunForSSH2Conn = (conn) => {
   };
 };
 
-const hopConnection = async(options1, _options2) => {
+const hopConnection = async (options1, _options2) => {
   const {
     conn,
     execStream
@@ -331,7 +354,7 @@ const hopConnection = async(options1, _options2) => {
   }
 };
 
-const getSSHClient = async({
+const getSSHClient = async ({
   type = 'normal', //proxy or normal
   options,
   proxyOptions

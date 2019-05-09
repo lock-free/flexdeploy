@@ -13,6 +13,7 @@ const {
  * deploy code to server and using docker-compose way to start service
  */
 const deployToServer = async(options) => {
+  info('ssh-connection', `try to connected: ${options.host} with ${JSON.stringify(options.sshConfig, null, 4)}`);
   const sshClient = await getSSHClient(options.sshConfig);
   info('ssh-connection', `connected: ${options.host}`);
   const sftpClient = await sshClient.getSftp();
@@ -44,9 +45,10 @@ const deployToServerHelp = async({
   digestMapFileName = 'dirDigestMap.json'
 }) => {
   // create remote dir if not exists
-  if (!await sftpClient.existsDir(remoteDir)) {
-    await sftpClient.mkdir(remoteDir);
-  }
+  //if (!await sftpClient.existsDir(remoteDir)) {
+  info('sftp-mkdirp', `try to create dir ${remoteDir} if not exists.`);
+  await sftpClient.mkdirp(remoteDir);
+  //}
 
   // copy yml
   const remoteDockerComposeYml = path.resolve(remoteDir, 'docker-compose.yml');
