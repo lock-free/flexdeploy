@@ -3,7 +3,8 @@ const {
   info
 } = require('./info');
 const {
-  readJson
+  readJson,
+  existsFile
 } = require('./fs');
 const {
   diffListByLayer
@@ -21,58 +22,89 @@ const syncFilesWithDiff = async (sshClient, sftpClient, {
   const stageDigestFilePath = path.join(deployDir, digestMapFileName);
   const remoteDigestFilePath = path.join(remoteDir, digestMapFileName);
 
-  if (await sftpClient.existsFile(remoteDigestFilePath)) {
-    const remoteDigest = await readRemoteJson(host, remoteDigestFilePath, sftpClient);
-    const localDigest = await readJson(stageDigestFilePath);
-    const diffList = diffListByLayer(localDigest, remoteDigest);
-
-    const delList = diffList.reduce((prev, diffObj) => {
-      if (diffObj.diffType === 'diffType' ||
-        diffObj.diffType === 'diffMd5' ||
-        diffObj.diffType === 'removeOld') {
-        const remoteFilePath = path.join(remoteStageDir, ...diffObj.path);
-        prev.push(remoteFilePath);
-      }
-      return prev;
-    }, []);
-
-    const copyList = diffList.reduce((prev, diffObj) => {
-      if (diffObj.diffType === 'diffType' ||
-        diffObj.diffType === 'diffMd5' ||
-        diffObj.diffType === 'addNew') {
-        prev.push({
-          local: path.join(stageCacheDir, ...diffObj.path),
-          remote: path.join(remoteStageDir, ...diffObj.path)
-        });
-      }
-      return prev;
-    }, []);
-
-    info('del list', JSON.stringify(delList, null, 4));
-    info('copy list', JSON.stringify(copyList, null, 4));
-
-    if (delList.length) {
-      await deleteRemoteFiles(host, delList, sftpClient);
-    }
-    if (copyList.length) {
-      await uploadFiles(host, copyList, sftpClient);
-    }
+  if (await existsFile(stageDigestFilePath) &&
+    await sftpClient.existsFile(remoteDigestFilePath)) {
+    await diffSync(sshClient, sftpClient, {
+      host,
+      remoteDigestFilePath,
+      stageDigestFilePath,
+      stageCacheDir,
+      remoteStageDir
+    });
   } else {
     info('missing-remote-digest-json', `can not find remote digest json. ${host}:${remoteDigestFilePath}`);
-    if (await sftpClient.existsDir(remoteStageDir)) {
-      const clearRemoteStageCommand = `rm -r ${remoteStageDir}`;
-      info('ssh-command', `${host}:${clearRemoteStageCommand}`);
-      // copy binaries
-      await sshClient.exec(clearRemoteStageCommand);
-    }
-
-    info('sftp-upload', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
-    await sftpClient.upload(stageCacheDir, remoteStageDir);
+    await fullUpload(sshClient, sftpClient, {
+      stageCacheDir,
+      remoteStageDir,
+      host
+    });
   }
 
-  // copy digest map json at last
-  info('sftp-upload', `from ${stageDigestFilePath} to ${host}:${remoteDigestFilePath}`);
-  await sftpClient.upload(stageDigestFilePath, remoteDigestFilePath);
+  if (await existsFile(stageDigestFilePath)) {
+    // copy digest map json at last
+    info('sftp-upload', `from ${stageDigestFilePath} to ${host}:${remoteDigestFilePath}`);
+    await sftpClient.upload(stageDigestFilePath, remoteDigestFilePath);
+  }
+};
+
+const diffSync = async (sshClient, sftpClient, {
+  host,
+  remoteDigestFilePath,
+  stageDigestFilePath,
+  stageCacheDir,
+  remoteStageDir
+}) => {
+  const remoteDigest = await readRemoteJson(host, remoteDigestFilePath, sftpClient);
+  const localDigest = await readJson(stageDigestFilePath);
+  const diffList = diffListByLayer(localDigest, remoteDigest);
+
+  const delList = diffList.reduce((prev, diffObj) => {
+    if (diffObj.diffType === 'diffType' ||
+      diffObj.diffType === 'diffMd5' ||
+      diffObj.diffType === 'removeOld') {
+      const remoteFilePath = path.join(remoteStageDir, ...diffObj.path);
+      prev.push(remoteFilePath);
+    }
+    return prev;
+  }, []);
+
+  const copyList = diffList.reduce((prev, diffObj) => {
+    if (diffObj.diffType === 'diffType' ||
+      diffObj.diffType === 'diffMd5' ||
+      diffObj.diffType === 'addNew') {
+      prev.push({
+        local: path.join(stageCacheDir, ...diffObj.path),
+        remote: path.join(remoteStageDir, ...diffObj.path)
+      });
+    }
+    return prev;
+  }, []);
+
+  info('del list', JSON.stringify(delList, null, 4));
+  info('copy list', JSON.stringify(copyList, null, 4));
+
+  if (delList.length) {
+    await deleteRemoteFiles(host, delList, sftpClient);
+  }
+  if (copyList.length) {
+    await uploadFiles(host, copyList, sftpClient);
+  }
+};
+
+const fullUpload = async (sshClient, sftpClient, {
+  stageCacheDir,
+  remoteStageDir,
+  host
+}) => {
+  if (await sftpClient.existsDir(remoteStageDir)) {
+    const clearRemoteStageCommand = `rm -r ${remoteStageDir}`;
+    info('ssh-command', `${host}:${clearRemoteStageCommand}`);
+    // copy binaries
+    await sshClient.exec(clearRemoteStageCommand);
+  }
+
+  info('sftp-upload', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
+  await sftpClient.upload(stageCacheDir, remoteStageDir);
 };
 
 const readRemoteJson = async (host, jsonFilePath, sftpClient) => {

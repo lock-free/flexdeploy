@@ -2,7 +2,7 @@
 
 const _ = require('lodash');
 const {deployToServer, buildCode} = require('..');
-const {getUserHome, readJson, existsFile, exec, parseTpl} = require('../src/util');
+const {getUserHome, readJson, existsFile, parseTpl} = require('../src/util');
 const yargs = require('yargs');
 const fs = require('fs');
 const path = require('path');
@@ -74,18 +74,12 @@ const resolveSSHConfig = (sshConfigs, configDir) => {
   return sshConfigs;
 };
 
-const runPreHooks = (config, configFilePath, cwd) => {
-  if(config.hooks && config.hooks.pre) {
-    config.hooks.pre.reduce((prev, line) => {
-      return prev.then(() => {
-        return exec(line, {
-          cwd
-        });
-      });
-    }, Promise.resolve());
+const runCommands = async(cmds, options, cwd) => {
+  if (cmds) {
+    cmds.forEach(async (line) => {
+      require('child_process').execSync(parseTpl(line, options), {cwd, stdio: 'inherit'});
+    });
   }
-
-  return Promise.resolve();
 };
 
 // read config from file
@@ -108,11 +102,10 @@ const readOptions = async () => {
 
   const onlineType = argv.onlineType;
   const configDir = path.dirname(configFilePath);
-  await runPreHooks(config, configFilePath, path.dirname(configFilePath));
 
   // build code
-  const sourceProjectDir = path.resolve(configDir, config.srcDir);
-  const sourceStageDir = path.join(sourceProjectDir, 'target/docker/stage');
+  const sourceProjectDir = config.srcDir? path.resolve(configDir, config.srcDir): null;
+  const sourceStageDir = sourceProjectDir? path.join(sourceProjectDir, 'target/docker/stage'): null;
   const deployStageName = 'stage';
   const deployDir = path.resolve(configDir, config.depDir || '.');
 
@@ -148,6 +141,7 @@ const getDeployList = (options) => {
 
 (async () => {
   const options = await readOptions();
+  await runCommands(_.get(options, 'config.hooks.pre'), options, options.configDir);
 
   const prepareCode = async () => {
     // build code
@@ -155,20 +149,26 @@ const getDeployList = (options) => {
   };
 
   const publishInsts = () => {
-    return Promise.all(getDeployList(options).map((inst) => {
+    return Promise.all(getDeployList(options).map(async (inst) => {
       const instObj = _.assign(inst,
         resolveConfigDef(options.config.def, {
           env: options.onlineType,
           project: options.project
         }));
 
-      return deployToServer(_.assign(
+      const obj = _.assign(
         options,
         instObj,
         {
           sshConfig: options.config.sshConfigs[instObj.host],
           dockerComposeYml: getDockerComposeYml(options, instObj),
-        }));
+        });
+
+      // run pre-deploy
+      await runCommands(_.get(options, 'config.hooks.preDeploy'), options, options.configDir);
+      await deployToServer(obj);
+      // run after deploy
+      await runCommands(_.get(options, 'config.hooks.afterDeploy'), options, options.configDir);
     }));
   };
 
