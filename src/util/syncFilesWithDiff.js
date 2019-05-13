@@ -97,7 +97,7 @@ const fullUpload = async (sshClient, sftpClient, {
   host
 }) => {
   if (await sftpClient.existsDir(remoteStageDir)) {
-    const clearRemoteStageCommand = `rm -r ${remoteStageDir}`;
+    const clearRemoteStageCommand = `[ ! -d ${remoteStageDir} ] || rm -r ${remoteStageDir}`;
     info('ssh-command', `${host}:${clearRemoteStageCommand}`);
     // copy binaries
     await sshClient.exec(clearRemoteStageCommand);
