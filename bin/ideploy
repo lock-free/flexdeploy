@@ -150,9 +150,6 @@ const getDeployList = (options) => {
 
   const publishInsts = () => {
     return Promise.all(getDeployList(options).map(async (inst) => {
-      // run pre-deploy
-      await runCommands(_.get(options, 'config.hooks.preDeploy'), options, options.configDir);
-
       const instObj = _.assign({}, inst,
         resolveConfigDef(options.config.def, {
           env: options.onlineType,
@@ -168,9 +165,11 @@ const getDeployList = (options) => {
           dockerComposeYml: getDockerComposeYml(options, instObj),
         });
 
+      // run pre-deploy
+      await runCommands(_.get(obj, 'config.hooks.preDeploy'), obj, obj.configDir);
       await deployToServer(obj);
       // run after deploy
-      await runCommands(_.get(options, 'config.hooks.afterDeploy'), options, options.configDir);
+      await runCommands(_.get(obj, 'config.hooks.afterDeploy'), obj, obj.configDir);
     }));
   };
 
