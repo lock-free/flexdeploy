@@ -10,6 +10,7 @@ const {
 
 /**
  * build code from source and copy the staging code to deploy directory
+ * TODO sync code with master
  */
 const buildCode = async (options) => {
   info('build code', `start to build code for ${options.project}-${options.onlineType}`);

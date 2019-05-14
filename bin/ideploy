@@ -106,7 +106,7 @@ const readOptions = async () => {
 
   // build code
   const sourceProjectDir = config.srcDir? path.resolve(configDir, config.srcDir): null;
-  const sourceStageDir = sourceProjectDir? path.join(sourceProjectDir, 'target/docker/stage'): null;
+  const sourceStageDir = sourceProjectDir? path.join(sourceProjectDir, config.stageDir || 'target/docker/stage'): null;
   const deployStageName = 'stage';
   const deployDir = path.resolve(configDir, config.depDir || '.');
 
@@ -126,7 +126,7 @@ const readOptions = async () => {
 };
 
 const getDockerComposeYml = (options, instObj) => {
-  return path.resolve(options.configDir, argv.dockerComposeYml || instObj.dockerComposeYml);
+  return instObj.dockerComposeYml? path.resolve(options.configDir, argv.dockerComposeYml || instObj.dockerComposeYml): null;
 };
 
 const getDeployList = (options) => {

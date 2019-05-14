@@ -56,26 +56,31 @@ const syncDockerComposeYml = async (sftpClient, {
   remoteDir,
   dockerComposeYml
 }) => {
-  // copy yml
-  const remoteDockerComposeYml = path.resolve(remoteDir, 'docker-compose.yml');
-  info('sftp-upload', `from ${dockerComposeYml} to ${host}:${remoteDockerComposeYml}`);
-  await sftpClient.upload(dockerComposeYml, remoteDockerComposeYml);
+  if (dockerComposeYml) {
+    // copy yml
+    const remoteDockerComposeYml = path.resolve(remoteDir, 'docker-compose.yml');
+    info('sftp-upload', `from ${dockerComposeYml} to ${host}:${remoteDockerComposeYml}`);
+    await sftpClient.upload(dockerComposeYml, remoteDockerComposeYml);
+  }
 };
 
 const lunchService = async (sshClient, {
   host,
-  remoteDir
+  remoteDir,
+  dockerComposeYml
 }) => {
-  // start server
-  // source some startup files first to set up environment
-  const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
-  info('ssh-command', `${host}:${startServiceCommand}`);
-  await sshClient.exec(startServiceCommand);
+  if (dockerComposeYml) {
+    // start server
+    // source some startup files first to set up environment
+    const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
+    info('ssh-command', `${host}:${startServiceCommand}`);
+    await sshClient.exec(startServiceCommand);
 
-  // logs
-  await delay(5 * 1000);
-  const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
-  await sshClient.exec(checkRemoteLogCommand);
+    // logs
+    await delay(5 * 1000);
+    const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
+    await sshClient.exec(checkRemoteLogCommand);
+  }
 };
 
 module.exports = {
