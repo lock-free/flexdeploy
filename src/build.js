@@ -5,8 +5,6 @@ const {
   info,
   saveJsonObj,
   getDirMd5FileMapping,
-  getBranchName,
-  isGitRootRepo,
   checkoutToBranch
 } = require('./util');
 
@@ -15,22 +13,28 @@ const {
  */
 const buildCode = async (options) => {
   info('build code', `start to build code for ${options.project}-${options.onlineType}`);
-  const isPktGit = await isGitRootRepo(options.deployDir);
 
-  if (isPktGit) {
-    await checkoutToBranch(options.deployDir, options.onlineType);
+  if (options.pktRepo) {
+    await checkoutToBranch(options.pktRepo, options.onlineType);
+    await spawnp('git', ['pull', 'origin', options.onlineType], {
+      cwd: options.pktRepo,
+      stdio: 'inherit'
+    });
   }
+
   await buildFromSource(options);
 
-  if (isPktGit) {
+  if (options.pktRepo) {
     // auto commit local changes
-    await autoCommitLocal(options.onlineType, options.deployDir);
+    await autoCommitLocal(options.project, options.onlineType, options.pktRepo);
+
     // tag it
-    await autoTag(options.deployDir, options.onlineType);
+    await autoTag(options.project, options.pktRepo, options.onlineType);
   }
 };
 
 const buildFromSource = async ({
+  project,
   onlineType,
   sourceProjectDir,
   sourceStageDir,
@@ -45,14 +49,11 @@ const buildFromSource = async ({
     stdio: 'inherit'
   };
 
-  // validate branch
-  const curBranch = await getBranchName(sourceProjectDir);
-  if (curBranch !== onlineType) {
-    throw new Error(`You should checkout to ${onlineType} branch to deploy your code. Current branch is ${curBranch}.`);
-  }
+  await checkoutToBranch(sourceProjectDir, onlineType);
+  await spawnp('git', ['pull', 'origin', onlineType], spopt);
 
   // auto commit local changes
-  await autoCommitLocal(onlineType, sourceProjectDir);
+  await autoCommitLocal(project, onlineType, sourceProjectDir);
 
   // build code
   if (process.env['BUILD'] !== 'OFF') {
@@ -67,17 +68,17 @@ const buildFromSource = async ({
   await saveJsonObj(path.join(deployDir, digestMapFileName), await getDirMd5FileMapping(stageCacheDir), 4);
 
   // tag it
-  await autoTag(sourceProjectDir, onlineType);
+  await autoTag(project, sourceProjectDir, onlineType);
 };
 
-const autoTag = async (sourceProjectDir, onlineType) => {
+const autoTag = async (project, sourceProjectDir, onlineType) => {
   const spopt = {
     cwd: sourceProjectDir,
     stdio: 'inherit'
   };
 
   // tag it
-  await spawnp('git', ['tag', '-a', `${onlineType}-${new Date().getTime()}`, '-m', `#auto online to ${onlineType} at ${new Date()}`], spopt);
+  await spawnp('git', ['tag', '-a', `${onlineType}-${project}-${new Date().getTime()}`, '-m', `#tag auto build to ${onlineType} at ${new Date()}.`], spopt);
   // push
   await spawnp('git', ['push', 'origin', onlineType], spopt);
 };
@@ -92,16 +93,15 @@ const copyStageDir = async (sourceProjectDir, sourceStageDir, stageCacheDir) => 
   await spawnp('cp', ['-r', sourceStageDir, stageCacheDir], spopt);
 };
 
-const autoCommitLocal = async (onlineType, sourceProjectDir) => {
+const autoCommitLocal = async (project, onlineType, sourceProjectDir) => {
   const spopt = {
     cwd: sourceProjectDir,
     stdio: 'inherit'
   };
 
-  await spawnp('git', ['pull', 'origin', onlineType], spopt);
   await spawnp('git', ['add', '.'], spopt);
   try {
-    await spawnp('git', ['commit', '-m', `#auto online to ${onlineType} commit`], spopt);
+    await spawnp('git', ['commit', '-m', `#auto build to ${project} ${onlineType} commit ${new Date()}.`], spopt);
   } catch (err) {
     // ignore
     // it's common to have nothing to commit

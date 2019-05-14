@@ -14,6 +14,7 @@ yargs.usage(`Usage: ideploy
   --buildOnly     build only
   --publishOnly   publish only
   --onlineType    online type, production, staging, ...
+  --pktRepo       pkt repo
     `).help('h').alias('h', 'help');
 
 const {
@@ -119,7 +120,8 @@ const readOptions = async () => {
     sourceProjectDir,
     sourceStageDir,
     deployStageName,
-    deployDir
+    deployDir,
+    pktRepo: argv.pktRepo
   };
 };
 

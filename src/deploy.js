@@ -8,6 +8,7 @@ const {
 
 /**
  * deploy code to server and using docker-compose way to start service
+ * TODO add release notes
  */
 const deployToServer = async (options) => {
   // check inst options
