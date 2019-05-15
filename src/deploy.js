@@ -30,7 +30,7 @@ const deployToServer = async (options) => {
     await deployToServerHelp(sshClient, sftpClient, options);
 
     // execute remote commands after deployment
-    const afterCmds = _.get(options, 'config.hooks.afterDeployRemoteCmds');
+    const afterCmds = _.get(options, 'hooks.afterDeployRemoteCmds');
     if (afterCmds) {
       await Promise.all(afterCmds.map((afterCmd) => {
         return sshClient.exec(parseTpl(afterCmd, options));

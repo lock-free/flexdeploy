@@ -21,27 +21,6 @@ const {
   argv
 } = yargs;
 
-/**
- * obj = {env, project}
- */
-const resolveConfigDef = (def, obj) => {
-  const ret = {};
-
-  if(def.remoteDir) {
-    ret.remoteDir = parseTpl(def.remoteDir, obj);
-  }
-
-  if(def.dockerComposeYml) {
-    ret.dockerComposeYml = parseTpl(def.dockerComposeYml, obj);
-  }
-
-  if(def.healthJob) {
-    ret.healthJob = (def.healthJob || []).map((item) => parseTpl(item, obj));
-  }
-
-  return ret;
-};
-
 const resolveSSHConfig = (sshConfigs, configDir) => {
   if(!sshConfigs) {
     throw new Error('missing configuration of sshConfigs');
@@ -83,8 +62,8 @@ const runCommands = async(cmds, options, cwd) => {
   }
 };
 
-// read config from file
 const readOptions = async () => {
+  // read config file
   let configFilePath, config = null;
 
   if(argv.config) {
@@ -101,37 +80,38 @@ const readOptions = async () => {
     throw new Error('missing config, use "ideploy --help" to see how to pass config.');
   }
 
-  const onlineType = argv.onlineType;
+  // merge argv
+  config = _.assign({
+    // some default values
+    deployStageName: 'stage',
+    stageDir: 'target/docker/stage',
+    depDir: '.'
+  }, config, argv);
+
   const configDir = path.dirname(configFilePath);
-
-  // build code
   const sourceProjectDir = config.srcDir? path.resolve(configDir, config.srcDir): null;
-  const sourceStageDir = sourceProjectDir? path.join(sourceProjectDir, config.stageDir || 'target/docker/stage'): null;
-  const deployStageName = 'stage';
-  const deployDir = path.resolve(configDir, config.depDir || '.');
 
-  // modify config
-  config.sshConfigs = resolveSSHConfig(config.sshConfigs, configDir);
-  return {
-    config,
+  return _.assign(config, {
     configDir,
-    project: config.project,
-    onlineType,
     sourceProjectDir,
-    sourceStageDir,
-    deployStageName,
-    deployDir,
-    pktRepo: argv.pktRepo
-  };
+    sourceStageDir: sourceProjectDir? path.join(sourceProjectDir, config.stageDir): null,
+    deployDir: path.resolve(configDir, config.depDir),
+    sshConfigs: resolveSSHConfig(config.sshConfigs, configDir)
+  }, argv);
 };
 
 const getDockerComposeYml = (options, instObj) => {
-  return instObj.dockerComposeYml? path.resolve(options.configDir, argv.dockerComposeYml || instObj.dockerComposeYml): null;
+  if(!instObj.dockerComposeYml && !argv.dockerComposeYml) return null;
+  if(argv.dockerComposeYml) {
+    return path.resolve(process.cwd(), parseTpl(argv.dockerComposeYml, options));
+  } else {
+    return path.resolve(options.configDir, parseTpl(instObj.dockerComposeYml, options));
+  }
 };
 
 const getDeployList = (options) => {
   // deploy to servers
-  var instList = options.config.instances[options.onlineType];
+  var instList = options.instances[options.onlineType];
 
   // can filter by host variable
   if(argv.host || process.env['HOST']) {
@@ -143,7 +123,7 @@ const getDeployList = (options) => {
 
 (async () => {
   const options = await readOptions();
-  await runCommands(_.get(options, 'config.hooks.pre'), options, options.configDir);
+  await runCommands(_.get(options, 'hooks.pre'), options, options.configDir);
 
   const prepareCode = async () => {
     // build code
@@ -152,26 +132,25 @@ const getDeployList = (options) => {
 
   const publishInsts = () => {
     return Promise.all(getDeployList(options).map(async (inst) => {
-      const instObj = _.assign({}, inst,
-        resolveConfigDef(options.config.def, {
-          env: options.onlineType,
-          project: options.project
-        }));
+      const instObj = _.assign({}, inst,{
+        remoteDir: parseTpl(options.def.remoteDir, options),
+        dockerComposeYml: options.def.dockerComposeYml
+      });
 
       const obj = _.assign(
         {},
         options,
         instObj,
         {
-          sshConfig: options.config.sshConfigs[instObj.host],
+          sshConfig: options.sshConfigs[instObj.host],
           dockerComposeYml: getDockerComposeYml(options, instObj),
         });
 
       // run pre-deploy
-      await runCommands(_.get(obj, 'config.hooks.preDeploy'), obj, obj.configDir);
+      await runCommands(_.get(obj, 'hooks.preDeploy'), obj, obj.configDir);
       await deployToServer(obj);
       // run after deploy
-      await runCommands(_.get(obj, 'config.hooks.afterDeploy'), obj, obj.configDir);
+      await runCommands(_.get(obj, 'hooks.afterDeploy'), obj, obj.configDir);
     }));
   };
 
