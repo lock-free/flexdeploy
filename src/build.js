@@ -5,7 +5,8 @@ const {
   info,
   saveJsonObj,
   getDirMd5FileMapping,
-  checkoutToBranch
+  checkoutToBranch,
+  isGitRootRepo
 } = require('./util');
 
 /**
@@ -50,11 +51,12 @@ const buildFromSource = async ({
     stdio: 'inherit'
   };
 
-  await checkoutToBranch(sourceProjectDir, onlineType);
-  await spawnp('git', ['pull', 'origin', onlineType], spopt);
-
-  // auto commit local changes
-  await autoCommitLocal(project, onlineType, sourceProjectDir);
+  if (await isGitRootRepo(sourceProjectDir)) {
+    await checkoutToBranch(sourceProjectDir, onlineType);
+    await spawnp('git', ['pull', 'origin', onlineType], spopt);
+    // auto commit local changes
+    await autoCommitLocal(project, onlineType, sourceProjectDir);
+  }
 
   // build code
   if (process.env['BUILD'] !== 'OFF') {
@@ -68,8 +70,10 @@ const buildFromSource = async ({
   // save digest map for stage dir
   await saveJsonObj(path.join(deployDir, digestMapFileName), await getDirMd5FileMapping(stageCacheDir), 4);
 
-  // tag it
-  await autoTag(project, sourceProjectDir, onlineType);
+  if (await isGitRootRepo(sourceProjectDir)) {
+    // tag it
+    await autoTag(project, sourceProjectDir, onlineType);
+  }
 };
 
 const autoTag = async (project, sourceProjectDir, onlineType) => {

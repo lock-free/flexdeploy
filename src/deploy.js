@@ -1,9 +1,11 @@
 const path = require('path');
+const _ = require('lodash');
 const {
   delay,
   info,
   getSSHClient,
-  syncFilesWithDiff
+  syncFilesWithDiff,
+  parseTpl
 } = require('./util');
 
 /**
@@ -26,6 +28,14 @@ const deployToServer = async (options) => {
 
   try {
     await deployToServerHelp(sshClient, sftpClient, options);
+
+    // execute remote commands after deployment
+    const afterCmds = _.get(options, 'config.hooks.afterDeployRemoteCmds');
+    if (afterCmds) {
+      await Promise.all(afterCmds.map((afterCmd) => {
+        return sshClient.exec(parseTpl(afterCmd, options));
+      }));
+    }
   } catch (err) {
     throw err;
   } finally {

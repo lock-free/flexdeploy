@@ -73,10 +73,10 @@ const connectSSHServer = (options) => {
 };
 
 const wrapFunForSSH2Conn = (conn) => {
-  const exec = (cmd) => {
+  const exec = (cmd, options = {}) => {
     return new Promise((resolve, reject) => {
       try {
-        conn.exec(cmd, (err, stream) => {
+        conn.exec(cmd, options, (err, stream) => {
           if (err) {
             reject(err);
           } else {
