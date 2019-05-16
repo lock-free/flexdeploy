@@ -7,6 +7,7 @@ const log = console.log; // eslint-disable-line
 
 yargs.usage(`Usage: iDYC
   --tplPath       tpl file path
+  --tarDir        target dir
   --config        config file path 
     `).help('h').alias('h', 'help');
 
@@ -16,5 +17,6 @@ const {
 
 generateDCY({
   tplPath: path.resolve(process.cwd(), argv.tplPath || 'dcy.tpl'),
-  config: path.resolve(process.cwd(), argv.config || 'dcy-cnf.json')
+  config: path.resolve(process.cwd(), argv.config || 'dcy-cnf.json'),
+  tarDir: path.resolve(process.cwd(), argv.tarDir)
 });

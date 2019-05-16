@@ -20,21 +20,21 @@ const {
  */
 const generateDCY = async ({
   tplPath,
-  config
+  config,
+  tarDir
 }) => {
   const tpl = await readTxt(tplPath);
   const cnfJson = await readJson(config);
+  const dir = tarDir || path.join(path.dirname(config), 'ymls');
 
   const envNames = Object.keys(cnfJson.env);
 
   await Promise.all(envNames.map(async (envName) => {
     let {
       name,
-      dir,
       vars
     } = cnfJson.env[envName];
     name = name || `docker-compose-${envName}.yml`;
-    dir = dir ? path.join(path.dirname(config), dir) : path.join(path.dirname(config), 'ymls');
 
     const tarPath = path.join(dir, name);
     const txt = parseTpl(tpl, Object.assign({
