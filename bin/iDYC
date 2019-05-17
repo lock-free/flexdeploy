@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
 const {generateDCY} = require('..');
+const _ = require('lodash');
 const yargs = require('yargs');
 const path = require('path');
+const {
+  readJson
+} = require('../src/util');
+
 const log = console.log; // eslint-disable-line
 
 yargs.usage(`Usage: iDYC
@@ -15,8 +20,13 @@ const {
   argv
 } = yargs;
 
-generateDCY({
-  tplPath: path.resolve(process.cwd(), argv.tplPath || 'dcy.tpl'),
-  config: path.resolve(process.cwd(), argv.config || 'dcy-cnf.json'),
-  tarDir: path.resolve(process.cwd(), argv.tarDir)
-});
+const run = async () => {
+  const cnfJson = await readJson(path.resolve(process.cwd(), argv.config || 'dcy-cnf.json'));
+  generateDCY({
+    tplPath: path.resolve(process.cwd(), argv.tplPath || 'dcy.tpl'),
+    config: _.assign({}, cnfJson, argv),
+    tarDir: path.resolve(process.cwd(), argv.tarDir)
+  });
+};
+
+run();

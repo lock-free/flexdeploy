@@ -1,5 +1,7 @@
 const path = require('path');
 const {
+  mkdirp,
+  existsDir,
   spawnp,
   exec,
   info,
@@ -45,6 +47,11 @@ const buildFromSource = async ({
   digestMapFileName = 'dirDigestMap.json'
 }) => {
   const stageCacheDir = path.join(deployDir, deployStageName);
+
+  // create if not exists
+  if(!await existsDir(stageCacheDir)) {
+    await mkdirp(stageCacheDir);
+  }
 
   const spopt = {
     cwd: sourceProjectDir,

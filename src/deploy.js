@@ -77,19 +77,22 @@ const syncDockerComposeYml = async (sftpClient, {
 const lunchService = async (sshClient, {
   host,
   remoteDir,
-  dockerComposeYml
+  dockerComposeYml,
+  startCommand
 }) => {
   if (dockerComposeYml) {
     // start server
     // source some startup files first to set up environment
-    const startServiceCommand = `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
+    const startServiceCommand = startCommand || `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
     info('ssh-command', `${host}:${startServiceCommand}`);
     await sshClient.exec(startServiceCommand);
 
-    // logs
-    await delay(5 * 1000);
-    const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
-    await sshClient.exec(checkRemoteLogCommand);
+    if (!startCommand) {
+      // logs
+      await delay(5 * 1000);
+      const checkRemoteLogCommand = `cd ${remoteDir} && docker-compose logs --tail 100`;
+      await sshClient.exec(checkRemoteLogCommand);
+    }
   }
 };
 

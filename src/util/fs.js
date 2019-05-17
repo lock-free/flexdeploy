@@ -51,5 +51,6 @@ module.exports = {
   writeTxt,
   existsFile,
   saveJsonObj,
-  existsDir
+  existsDir,
+  mkdirp
 };

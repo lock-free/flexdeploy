@@ -134,7 +134,8 @@ const getDeployList = (options) => {
     return Promise.all(getDeployList(options).map(async (inst) => {
       const instObj = _.assign({}, inst,{
         remoteDir: parseTpl(options.def.remoteDir, options),
-        dockerComposeYml: options.def.dockerComposeYml
+        dockerComposeYml: options.def.dockerComposeYml,
+        startCommand: options.def.startCommand && parseTpl(options.def.startCommand, options)
       });
 
       const obj = _.assign(

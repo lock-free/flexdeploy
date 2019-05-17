@@ -1,14 +1,14 @@
 const path = require('path');
 const {
   readTxt,
-  readJson,
   writeTxt,
   parseTpl
 } = require('./util');
+const _ = require('lodash');
 
 /**
  *
- * cnfJson = {
+ * config = {
  *   env: {
  *    [env]: {
  *      name,
@@ -24,23 +24,22 @@ const generateDCY = async ({
   tarDir
 }) => {
   const tpl = await readTxt(tplPath);
-  const cnfJson = await readJson(config);
   const dir = tarDir || path.join(path.dirname(config), 'ymls');
 
-  const envNames = Object.keys(cnfJson.env);
+  const envNames = Object.keys(config.env);
 
   await Promise.all(envNames.map(async (envName) => {
     let {
       name,
       vars
-    } = cnfJson.env[envName];
+    } = config.env[envName];
     name = name || `docker-compose-${envName}.yml`;
 
     const tarPath = path.join(dir, name);
-    const txt = parseTpl(tpl, Object.assign({
+    const txt = parseTpl(tpl, _.assign({
       env: envName,
-      project: cnfJson.project
-    }, vars));
+      project: config.project
+    }, config, vars));
 
     await writeTxt(tarPath, txt);
   }));
