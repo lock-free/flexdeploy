@@ -36,7 +36,7 @@ const generateDCY = async ({
     name = name || `docker-compose-${envName}.yml`;
 
     const tarPath = path.join(dir, name);
-    const txt = parseTpl(tpl, _.assign(config, {
+    const txt = parseTpl(tpl, _.assign({}, config, {
       env: envName,
       project: config.project
     }, vars));
