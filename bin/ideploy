@@ -56,9 +56,9 @@ const resolveSSHConfig = (sshConfigs, configDir) => {
 
 const runCommands = async(cmds, options, cwd) => {
   if (cmds) {
-    cmds.forEach(async (line) => {
+    await Promise.all(cmds.map(async (line) => {
       require('child_process').execSync(parseTpl(line, options), {cwd, stdio: 'inherit'});
-    });
+    }));
   }
 };
 
@@ -122,45 +122,50 @@ const getDeployList = (options) => {
 };
 
 (async () => {
-  const options = await readOptions();
-  await runCommands(_.get(options, 'hooks.pre'), options, options.configDir);
+  try {
+    const options = await readOptions();
+    await runCommands(_.get(options, 'hooks.pre'), options, options.configDir);
 
-  const prepareCode = async () => {
-    // build code
-    return await buildCode(options);
-  };
+    const prepareCode = async () => {
+      // build code
+      return await buildCode(options);
+    };
 
-  const publishInsts = () => {
-    return Promise.all(getDeployList(options).map(async (inst) => {
-      const instObj = _.assign({}, inst,{
-        remoteDir: parseTpl(options.def.remoteDir, options),
-        dockerComposeYml: options.def.dockerComposeYml,
-        startCommand: options.def.startCommand && parseTpl(options.def.startCommand, options)
-      });
-
-      const obj = _.assign(
-        {},
-        options,
-        instObj,
-        {
-          sshConfig: options.sshConfigs[instObj.host],
-          dockerComposeYml: getDockerComposeYml(options, instObj),
+    const publishInsts = () => {
+      return Promise.all(getDeployList(options).map(async (inst) => {
+        const instObj = _.assign({}, inst,{
+          remoteDir: parseTpl(options.def.remoteDir, options),
+          dockerComposeYml: options.def.dockerComposeYml,
+          startCommand: options.def.startCommand && parseTpl(options.def.startCommand, options)
         });
 
-      // run pre-deploy
-      await runCommands(_.get(obj, 'hooks.preDeploy'), obj, obj.configDir);
-      await deployToServer(obj);
-      // run after deploy
-      await runCommands(_.get(obj, 'hooks.afterDeploy'), obj, obj.configDir);
-    }));
-  };
+        const obj = _.assign(
+          {},
+          options,
+          instObj,
+          {
+            sshConfig: options.sshConfigs[instObj.host],
+            dockerComposeYml: getDockerComposeYml(options, instObj),
+          });
 
-  if(argv.buildOnly) {
-    await prepareCode();
-  } else if(argv.publishOnly) {
-    await publishInsts();
-  } else {
-    await prepareCode();
-    await publishInsts();
+        // run pre-deploy
+        await runCommands(_.get(obj, 'hooks.preDeploy'), obj, obj.configDir);
+        await deployToServer(obj);
+        // run after deploy
+        await runCommands(_.get(obj, 'hooks.afterDeploy'), obj, obj.configDir);
+      }));
+    };
+
+    if(argv.buildOnly) {
+      await prepareCode();
+    } else if(argv.publishOnly) {
+      await publishInsts();
+    } else {
+      await prepareCode();
+      await publishInsts();
+    }
+  } catch(err) {
+    log(`[errored] ${err.stack}`);
+    process.exit(1);
   }
 })();
