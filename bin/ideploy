@@ -9,12 +9,13 @@ const path = require('path');
 const log = console.log; // eslint-disable-line
 
 yargs.usage(`Usage: ideploy
-  --config        config json file path
-  --env           used for config
-  --buildOnly     build only
-  --publishOnly   publish only
-  --onlineType    online type, production, staging, ...
-  --pktRepo       pkt repo
+  --config         config json file path
+  --machineConfig  machine config file path
+  --env            used for config
+  --buildOnly      build only
+  --publishOnly    publish only
+  --onlineType     online type, production, staging, ...
+  --pktRepo        pkt repo
     `).help('h').alias('h', 'help');
 
 const {
@@ -62,15 +63,29 @@ const runCommands = async(cmds, options, cwd) => {
   }
 };
 
-const readOptions = async () => {
-  // read config file
-  let configFilePath, config = null;
+const getConfigFilePath = async () => {
+  let configFilePath;
 
   if(argv.config) {
     configFilePath = path.resolve(process.cwd(), argv.config);
   } else if(await existsFile(path.resolve(process.cwd(), 'deploy-cnf.json'))) {
     configFilePath = path.resolve(process.cwd(), 'deploy-cnf.json');
   }
+
+  return configFilePath;
+};
+
+const getMachineConfig = async () => {
+  if (argv.machineConfig) {
+    const machineConfigFilePath = path.resolve(process.cwd(), argv.machineConfig);
+    return await readJson(machineConfigFilePath);
+  }
+};
+
+const readOptions = async () => {
+  // read config file
+  const configFilePath = await getConfigFilePath();
+  let config = null;
 
   if(configFilePath) {
     config = await readJson(configFilePath);
@@ -79,6 +94,9 @@ const readOptions = async () => {
   if(!config) {
     throw new Error('missing config, use "ideploy --help" to see how to pass config.');
   }
+
+  // merge machine config
+  config = _.assign(config, await getMachineConfig() || {});
 
   // merge argv
   config = _.assign({
