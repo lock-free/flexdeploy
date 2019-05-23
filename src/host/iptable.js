@@ -11,7 +11,13 @@ const insertOpenRule = (port) => {
 
 // ipFrag: eg 10.65.204.10/26
 const insertOpenIpFragRule = (port, ipFrag) => {
-  return `sudo iptables -C INPUT -p tcp -m tcp --dport ${port} -j ACCEPT || sudo iptables -I INPUT -p tcp -m tcp --dport ${port} -s ${ipFrag} -j ACCEPT`;
+  return `sudo iptables -C INPUT -p tcp -m tcp --dport ${port} -s ${ipFrag} -j ACCEPT || sudo iptables -I INPUT -p tcp -m tcp --dport ${port} -s ${ipFrag} -j ACCEPT`;
+};
+
+const insertOpenIpFragPortRangeRule = (startPort, endPort, ipFrag) => {
+  const portRange = `${startPort}:${endPort}`;
+
+  return `sudo iptables -C INPUT -p tcp --match multiport --dports ${portRange} -s ${ipFrag} -j ACCEPT || sudo iptables -I INPUT -p tcp --match multiport --dports ${portRange} -s ${ipFrag} -j ACCEPT`;
 };
 
 const deployIpTableRules = (host, rules) => {
@@ -27,10 +33,10 @@ const getShellCode = (host, rules) => {
   return `ssh ${host} -t "${code}"`;
 };
 
-
 module.exports = {
   insertOpenRule,
   insertOpenIpFragRule,
   deployIpTableRules,
-  getShellCode
+  getShellCode,
+  insertOpenIpFragPortRangeRule
 };
