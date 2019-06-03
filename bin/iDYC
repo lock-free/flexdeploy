@@ -5,7 +5,7 @@ const _ = require('lodash');
 const yargs = require('yargs');
 const path = require('path');
 const {
-  readJson
+  readConfig
 } = require('../src/util');
 
 const log = console.log; // eslint-disable-line
@@ -21,7 +21,8 @@ const {
 } = yargs;
 
 const run = async () => {
-  const cnfJson = await readJson(path.resolve(process.cwd(), argv.config || 'dcy-cnf.json'));
+  const cnfFilePath = path.resolve(process.cwd(), argv.config || 'dcy-cnf.json');
+  const cnfJson = await readConfig(cnfFilePath);
   generateDCY({
     tplPath: path.resolve(process.cwd(), argv.tplPath || 'dcy.tpl'),
     config: _.assign({}, cnfJson, argv),

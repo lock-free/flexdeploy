@@ -28,6 +28,7 @@ const deployIpTableRules = (host, rules) => {
     stdio: 'inherit'
   });
 };
+
 const getShellCode = (host, rules) => {
   const code = rules.map((rule) => `(${rule})`).join(' && ');
   return `ssh ${host} -t "${code}"`;

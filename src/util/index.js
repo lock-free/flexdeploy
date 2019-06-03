@@ -101,6 +101,23 @@ const checkoutToBranch = async (dir, branchName) => {
   });
 };
 
+// support json and js filetype
+const readConfig = async (cnfFilePath) => {
+  const ext = path.extname(cnfFilePath);
+  switch (ext) {
+    case '.json':
+      return await fs.readJson(cnfFilePath);
+    case '.js':
+      return readJs(cnfFilePath);
+    default:
+      throw new Error(`unexpected extname of path ${ext}, expect .json or .js`);
+  }
+};
+
+const readJs = (filePath) => {
+  return require(filePath);
+};
+
 module.exports = _.assign({
   checkoutToBranch,
   getBranchName,
@@ -113,5 +130,6 @@ module.exports = _.assign({
   errorLogWrapper,
   retry,
   delay,
-  isGitRootRepo
+  isGitRootRepo,
+  readConfig
 }, require('./sshClient'), require('./fs'), require('./syncFilesWithDiff'), require('./syncRemoteDir'));
