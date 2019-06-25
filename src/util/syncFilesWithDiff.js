@@ -103,8 +103,9 @@ const fullUpload = async (sshClient, sftpClient, {
     await sshClient.exec(clearRemoteStageCommand);
   }
 
-  info('sftp-upload', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
+  info('sftp-upload-start', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
   await sftpClient.upload(stageCacheDir, remoteStageDir);
+  info('sftp-upload-done', `from ${stageCacheDir} to ${host}:${remoteStageDir}`);
 };
 
 const readRemoteJson = async (host, jsonFilePath, sftpClient) => {

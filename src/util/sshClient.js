@@ -198,8 +198,12 @@ const wrapFunForSSH2Conn = (conn) => {
       const readStream = fs.createReadStream(local);
       const writeStream = sftp.createWriteStream(remote);
       await new Promise((resolve, reject) => {
-        readStream.on('error', reject);
-        writeStream.on('error', reject);
+        readStream.on('error', (err) => {
+          return reject(new Error(`Error happened for readStream. Error message is ${err.message}. Local=${local}, remote=${remote}.`));
+        });
+        writeStream.on('error', (err) => {
+          return reject(new Error(`Error happened for writeStream. Error message is ${err.message}. Local=${local}, remote=${remote}.`));
+        });
         readStream.pipe(writeStream).on('finish', resolve);
       });
 
@@ -213,6 +217,25 @@ const wrapFunForSSH2Conn = (conn) => {
         await keepFileMod(localDir, remoteDir);
       }
       const files = await readdir(localDir);
+
+      // use serial temp
+      return files.reduce((prev, file) => {
+        return prev.then(async () => {
+          const filePath = path.resolve(localDir, file);
+          const fileStat = await stat(filePath);
+
+          const remoteFilePath = path.resolve(remoteDir, file);
+          if (fileStat.isDirectory()) {
+            return uploadDir(filePath, remoteFilePath);
+          } else {
+            return uploadFile(filePath, remoteFilePath);
+          }
+        });
+      }, Promise.resolve());
+
+      // TODO concurrent with max limitation
+
+      /*
       return Promise.all(
         files.map(async (file) => {
           const filePath = path.resolve(localDir, file);
@@ -226,6 +249,7 @@ const wrapFunForSSH2Conn = (conn) => {
           }
         })
       );
+      */
     };
 
     return {
