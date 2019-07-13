@@ -79,17 +79,21 @@ const readOptions = async (argv) => {
     argv, // params
   );
 
-  const sourceProjectDir = config.srcDir ? path.resolve(configDir, config.srcDir) : null;
+  const sourceProjectDir = argv.srcDir ? path.resolve(process.cwd(), argv.srcDir) : config.srcDir ? path.resolve(configDir, config.srcDir) : null;
+
+  if (!sourceProjectDir) {
+    throw new Error('missing src dir');
+  }
+
+  const deployDir = argv.deployDir ? path.resolve(process.cwd(), argv.deployDir) : path.resolve(configDir, config.depDir);
 
   return _.assign(config, {
     configDir,
     sourceProjectDir,
     sourceStageDir: sourceProjectDir ? path.join(sourceProjectDir, config.stageDir) : null,
-    deployDir: path.resolve(configDir, config.depDir),
+    deployDir,
     sshConfigs: resolveSSHConfig(config.sshConfigs, configDir)
-  }, _.assign(argv, {
-    deployDir: argv.deployDir ? path.resolve(process.cwd(), argv.deployDir) : undefined
-  }));
+  });
 };
 
 const getDockerComposeYml = (argv, options, instObj) => {

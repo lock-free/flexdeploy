@@ -30,5 +30,7 @@ module.exports = async (argv) => {
   delete argv.project;
   delete argv.config;
 
-  return ideploy(_.assign({}, config.common || {}, app, argv));
+  return ideploy(_.assign({
+    project: argv.project
+  }, config.common || {}, app, argv));
 };
