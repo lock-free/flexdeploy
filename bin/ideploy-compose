@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 
-const ideploy = require('./src/ideploy');
+const ideployCompose = require('./src/ideployCompose');
 const yargs = require('yargs');
 const log = console.log; // eslint-disable-line
 
 yargs.usage(`Usage: ideploy
-  --config         config json file path
+  --config         compose config json file path
+  --project        deploy project
+
   --machineConfig  machine config file path
   --env            used for config
   --buildOnly      build only
   --publishOnly    publish only
   --onlineType     online type, production, staging, ...
+  --srcDir
+  --deployDir
   --pktRepo        pkt repo
     `).help('h').alias('h', 'help');
 
@@ -18,4 +22,4 @@ const {
   argv
 } = yargs;
 
-ideploy(argv);
+ideployCompose(argv);
