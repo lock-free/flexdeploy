@@ -49,7 +49,7 @@ const buildFromSource = async ({
   const stageCacheDir = path.join(deployDir, deployStageName);
 
   // create if not exists
-  if(!await existsDir(stageCacheDir)) {
+  if (!await existsDir(stageCacheDir)) {
     await mkdirp(stageCacheDir);
   }
 
@@ -72,7 +72,9 @@ const buildFromSource = async ({
   }
 
   // copy stage dir
-  await copyStageDir(sourceProjectDir, sourceStageDir, stageCacheDir);
+  if (stageCacheDir !== sourceStageDir) {
+    await copyStageDir(sourceProjectDir, sourceStageDir, stageCacheDir);
+  }
 
   // save digest map for stage dir
   await saveJsonObj(path.join(deployDir, digestMapFileName), await getDirMd5FileMapping(stageCacheDir), 4);

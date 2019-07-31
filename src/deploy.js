@@ -36,8 +36,6 @@ const deployToServer = async (options) => {
         return sshClient.exec(parseTpl(afterCmd, options));
       }));
     }
-  } catch (err) {
-    throw err;
   } finally {
     sshClient.conn.end();
     if (sshClient.parentConn) {
