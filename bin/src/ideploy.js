@@ -134,10 +134,13 @@ module.exports = async (argv) => {
 
     const publishInsts = () => {
       return Promise.all(getDeployList(argv, options).map(async (inst) => {
+        const remoteDir = parseTpl(options.def.remoteDir, options);
         const instObj = _.assign({}, inst, {
-          remoteDir: parseTpl(options.def.remoteDir, options),
+          remoteDir,
           dockerComposeYml: options.def.dockerComposeYml,
-          startCommand: options.def.startCommand && parseTpl(options.def.startCommand, options)
+          startCommand: options.def.startCommand && parseTpl(options.def.startCommand, _.assign({}, options, {
+            remoteDir
+          }))
         });
 
         const obj = _.assign({},
