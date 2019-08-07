@@ -1,6 +1,6 @@
 {
   "name": "flexdeploy",
-  "version": "0.0.25",
+  "version": "0.0.26",
   "description": "deploy tool for production environment",
   "main": "index.js",
   "scripts": {
@@ -8,6 +8,7 @@
   },
   "bin": {
     "ideploy": "./bin/ideploy",
+    "ideploy-compose": "./bin/ideploy-compose",
     "iDYC": "./bin/iDYC"
   },
   "keywords": [
