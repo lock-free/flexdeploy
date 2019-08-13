@@ -27,10 +27,10 @@ module.exports = async (argv) => {
     throw new Error('no project to deploy.');
   }
 
-  delete argv.project;
+  const project = argv.project;
   delete argv.config;
 
   return ideploy(_.assign({
-    project: argv.project
+    project
   }, config.common || {}, app, argv));
 };
