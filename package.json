@@ -1,6 +1,6 @@
 {
   "name": "flexdeploy",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "description": "deploy tool for production environment",
   "main": "index.js",
   "scripts": {
@@ -23,12 +23,12 @@
     "mocha": "^5.2.0"
   },
   "dependencies": {
-    "chalk": "^2.4.1",
-    "es6-promisify": "^6.0.0",
+    "chalk": "^2.4.2",
+    "es6-promisify": "^6.0.2",
     "lodash": "^4.17.15",
     "mkdirp": "^0.5.1",
     "spawnp": "^0.1.2",
-    "ssh2": "^0.6.1",
-    "yargs": "^12.0.1"
+    "ssh2": "^0.8.5",
+    "yargs": "^12.0.5"
   }
 }
