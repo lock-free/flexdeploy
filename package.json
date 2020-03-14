@@ -1,6 +1,6 @@
 {
   "name": "flexdeploy",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "description": "deploy tool for production environment",
   "main": "index.js",
   "scripts": {
