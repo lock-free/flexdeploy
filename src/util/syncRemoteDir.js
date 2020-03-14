@@ -45,9 +45,10 @@ const getDirMd5FileMapping = async (dirPath) => {
     } else if (stats.isDirectory()) {
       return ['dir', file, await getDirMd5FileMapping(nextFilePath)];
     } else {
+      console.log(`unexpected file type of ${nextFilePath}`);
       return null;
     }
-  }).filter((item) => item !== null))).reduce((prev, [type, fileName, value]) => {
+  }))).filter((item) => item !== null).reduce((prev, [type, fileName, value]) => {
     if (type === 'file') {
       prev[fileName] = {
         type,
