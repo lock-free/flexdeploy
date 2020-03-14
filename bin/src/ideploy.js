@@ -6,7 +6,8 @@ const {
 const {
   getUserHome,
   readConfig,
-  parseTpl
+  parseTpl,
+  info
 } = require('../../src/util');
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +20,7 @@ const resolveSSHConfig = (sshConfigs, configDir) => {
 
   const defaultPrivateKeyFile = path.resolve(getUserHome(), '.ssh/id_rsa');
 
-  for (let name in sshConfigs) {
+  for (let name in sshConfigs) { // eslint-disable-line
     const obj = sshConfigs[name];
     const options = obj.options;
     // resolve private key
@@ -123,6 +124,7 @@ const getDeployList = (argv, options) => {
 };
 
 module.exports = async (argv) => {
+  info('ideploy', `argv=${JSON.stringify(argv, null, 4)}`);
   try {
     const options = await readOptions(argv);
     await runCommands(_.get(options, 'hooks.pre'), options, options.configDir);
