@@ -127,6 +127,8 @@ module.exports = async (argv) => {
   info('ideploy', `argv=${JSON.stringify(argv, null, 4)}`);
   try {
     const options = await readOptions(argv);
+    info('options', `argv=${JSON.stringify(options, null, 4)}`);
+
     await runCommands(_.get(options, 'hooks.pre'), options, options.configDir);
 
     const prepareCode = async () => {
