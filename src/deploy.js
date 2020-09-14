@@ -81,7 +81,9 @@ const lunchService = async (sshClient, {
   if (dockerComposeYml) {
     // start server
     // source some startup files first to set up environment
-    const startServiceCommand = startCommand || `source ~/.bash_profile; cd ${remoteDir} && docker-compose down && docker-compose build --force-rm && docker-compose up -d && docker system prune -f`;
+    const oldDockerComposeYml = path.resolve(remoteDir, 'docker-compose-old.yml')
+    const startServiceCommand = startCommand || `source ~/.bash_profile; cd ${remoteDir} && cp ${dockerComposeYml} ${oldDockerComposeYml} && docker-compose -f ${oldDockerComposeYml} down && docker-compose build -f ${dockerComposeYml} --force-rm && docker-compose up -f ${dockerComposeYml} -d && docker system prune -f`;
+
     info('ssh-command', `${host}:${startServiceCommand}`);
     await sshClient.exec(startServiceCommand);
 
